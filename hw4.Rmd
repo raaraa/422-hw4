@@ -8,6 +8,8 @@ library(textreuse)
 library(stringr)
 library(lsa)
 library(Metrics)
+library(zoo)
+library(proxy)
 ```
 
 #2.1
@@ -252,6 +254,7 @@ for(i in 1:4) {
 ##a.)
 
 ```{r}
+set.seed(20)
 user_ids <- c(513,317,415,375,64,556,82,225,657,266,568,50)
 selected_user <- sample(user_ids,5)
 ```
@@ -333,7 +336,7 @@ U
 #transpose matrix
 U <- as.data.frame(t(U))
 #manualy swapping rows to make 191 first
-U <- U[,c("191","50","556","82","317","225")]
+U <- U[,c("191","568","657","415","64","225")]
 U[,ncol(U)+1] <- apply(U,1,function(x) mean(x,na.rm=T))
 U
 ```
@@ -371,15 +374,15 @@ for(i in 1:nrow(U) ) {
     }
     
     U_final <- U_final[order(-U_final$sim),]
-    k <- 0
-    l <- 2
-    while (k < 3 & l < 10) {
-     if(!is.na(U_final[l,1])) {
-       movie_rating = movie_rating + U_final$sim[l] * U_final[l,1]
-       sum = sum + U_final$sim[l]
-       k = k + 1
+    l <- 0
+    m <- 2
+    while (l < 3 & m < 10) {
+     if(!is.na(U_final[m,1])) {
+       movie_rating = movie_rating + U_final$sim[m] * U_final[m,1]
+       sum = sum + U_final$sim[m]
+       l = l + 1
      }
-      l = l + 1
+      m = m + 1
     }
     movie_rating <- movie_rating/sum
     pred_rating <- c(pred_rating,movie_rating)
