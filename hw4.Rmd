@@ -1,0 +1,400 @@
+---
+title: "CS 422 Section 01"
+output: html_notebook
+author: Raul Renteria
+---
+```{r}
+library(textreuse)
+library(stringr)
+library(lsa)
+library(Metrics)
+```
+
+#2.1
+```{r}
+files <- list.files("hw4.movies", full.names=T)
+
+corpus <- TextReuseCorpus(files, tokenizer = tokenize_ngrams, n = 5,
+                          keep_tokens = TRUE)
+ 
+```
+
+
+##a.)
+```{r}
+col <- names(corpus)
+rows <- tokens(corpus[1])
+rows <- as.data.frame(rows)
+colnames(rows) <- "Shingles"
+# put all the shingles in rows
+for (i in 2:671) {
+  df <- tokens(corpus[i])
+  df <- as.data.frame(df)
+  colnames(df) <- "Shingles"
+  rows <- rbind(rows,df)
+}
+rows <- unique(rows) # find only the unique shingles
+nrow(rows)
+```
+
+
+
+##b.)
+```{r}
+d <- corpus[["user20"]]
+```
+
+
+###i.)
+```{r}
+#getting number of movies rated by user
+user_20 <- read.csv("hw4.movies/user20.txt", sep="\n", header = F)
+cat("user has rated", nrow(user_20), "movies")
+```
+
+
+###ii.)
+```{r}
+#first five shingles
+head(d$tokens, 5)
+```
+
+
+
+##c.)
+```{r}
+res <- pairwise_candidates(pairwise_compare(corpus, jaccard_similarity))
+```
+
+
+
+###i.)
+```{r}
+res[which(res$score >= 0.6),]
+```
+##### 0 pairs
+
+###ii.)
+```{r}
+res[which(res$score >= 0.5),]
+```
+##### 0 pairs
+
+
+
+###ii.)
+```{r}
+length(which(res$score >= 0.4))
+```
+##### 4 pairs
+
+
+
+###iv.)
+```{r}
+res[which(res$score >= 0.4),]
+```
+
+
+
+##d.)
+
+###i.)
+```{r}
+lsh_probability(h=18, b=9, s=0.6)
+```
+#####number of minhash signatures = 18
+#####number of bands = 9
+
+
+###ii.)
+```{r}
+#minhash generator
+minhash <- minhash_generator(n=18, seed=100)
+
+#creating new corpus
+corpus <- TextReuseCorpus(files, tokenizer = tokenize_ngrams, n = 5,
+                          minhash_func = minhash, keep_tokens = TRUE)
+```
+
+```{r}
+d <- corpus[["user20"]]
+
+#first five minhashes
+head(d$minhashes,5)
+```
+
+
+
+##e.)
+```{r}
+buckets <- lsh(corpus, bands = 9)
+candidates <- lsh_candidates(buckets)
+res <- lsh_compare(candidates, corpus, jaccard_similarity)
+```
+
+###i.) No, because using the brute force method showed that there are zero.
+
+
+###ii.)
+```{r}
+res[which(res$score >= 0.4),]
+```
+
+###iii.) The ones that finds are the same, but it misses one of the four that was found in part c
+
+
+
+###iv.) Using the LSH method was about 23,121% better. There were 968 comparisons to be made vs. 224,785.2
+
+
+
+
+
+
+#2.2
+```{r}
+movies <- read.csv("ml-latest-small/movies.csv")
+users <- read.csv("ml-latest-small/ratings.csv")
+user_id <- 20349053 %% 671
+movies.sample <- sample(movies$movieId, 10)
+```
+
+
+```{r}
+user_profile <- data.frame(matrix(nrow = length(which(users$userId==user_id)), ncol = 20))
+colnames(user_profile) <- c("Action", "Adventure", "Animation", "Children", "Comedy", "Crime", "Documentary", "Drama", "Fantasy", "Film-Noir", "Horror", "IMAX", "Musical", "Mystery", "Romance", "Sci-Fi", "Thriller", "War", "Western", "(no genres listed)")
+
+rows <- users$movieId[which(users$userId==user_id)]
+rownames(user_profile) <- as.character(rows)
+```
+
+
+```{r}
+#creating user profile
+for (row_idx in 1:nrow(user_profile)) {
+  char <- movies$genres[which(movies$movieId == rows[row_idx])]
+  genres <- strsplit(as.character(char), "|", fixed = T)[[1]]
+  for (i in 1:length(genres)) {
+      col_idx <- match(genres[i],colnames(user_profile))
+      user_profile[row_idx,col_idx] <- 1
+  }
+}
+
+user_profile.vector <- as.vector(colSums(user_profile, na.rm = T) / 20)
+```
+
+```{r}
+#creating movie profiles 
+movie_profiles <- data.frame()
+
+for (i in 1:length(movies.sample)) {
+  movie_profiles.vector <- rep(0,20)
+  char <- movies$genres[which(movies$movieId == movies.sample[i])]
+  genres <- strsplit(as.character(char), "|", fixed = T)[[1]]
+  id <- movies.sample[i]
+  
+  idx <- match(genres, colnames(user_profile))
+  for (j in idx) {
+    movie_profiles.vector[j] <- 1
+  }
+  movie_profiles <- rbind(movie_profiles,movie_profiles.vector)
+}
+
+rownames(movie_profiles) <- movies.sample
+```
+
+```{r}
+sim_score <- c()
+for (k in 1:10) {
+  sim_score <- c(sim_score,(cosine(user_profile.vector, as.integer(movie_profiles[k,]))))
+}
+#creating dictionary
+names(sim_score) <- movies.sample
+
+sim_score <- sort(sim_score,decreasing = T)
+
+```
+
+```{r}
+cat(paste("For user ID", user_id, "the following movies are recommended:\n\n"))
+for(k in 1:5){
+  id <- names(sim_score)[k]
+  movie <- movies[which(movies$movieId == id),]
+  cat(paste("Movie", movie[[2]], ", similarity score ", sim_score[k],"\n\n"))
+}
+```
+
+
+
+
+
+#2.3
+
+```{r}
+test <- c(150,296,380,590)
+
+for (i in 1:4) {
+  cat("Movie id:", test[i],
+      "Movie rating:", users$rating[which(users$userId==191 & users$movieId == test[i])], "\n")
+}
+```
+
+```{r}
+#setting test ratings to NA 
+for(i in 1:4) {
+  users$rating[which(users$userId==191 & users$movieId == test[i])] <- NA
+}
+```
+
+
+
+##a.)
+
+```{r}
+user_ids <- c(513,317,415,375,64,556,82,225,657,266,568,50)
+selected_user <- sample(user_ids,5)
+```
+
+```{r}
+#createing utility matrix
+U <- data.frame(row.names = selected_user)
+rownames(U[nrow(U)+1,]) <- 191
+intersect_movie <- intersect(users$movieId[which(users$userId == 191)],
+                             users$movieId[which(users$userId %in% selected_user)])
+U[,as.character(intersect_movie)] <- NA
+U <- U[,1:length(U)]
+```
+
+```{r}
+for (i in 1:nrow(U)) {
+  for (j in 1:ncol(U)) {
+    if(length(as.integer(users$rating[which(users$userId == row.names(U[i,]) & users$movieId ==  colnames(U[j]))])) == 0) {
+        U[i,j] <- NA
+    }
+    else {
+      U[i,j] <- users$rating[which(users$userId == row.names(U[i,]) & users$movieId ==  colnames(U[j]))]
+    }
+  }
+}
+```
+
+
+```{r}
+#creating table like in hw description with given values
+jac <- data.frame(user_ids)
+colnames(jac) <- "userId"
+jac[,2] <- c(0.4358974,0.4033613,0.3255814,0.3049645,0.2753623,0.2727273,
+             0.2527473,0.2420382,0.2262774,0.2216216,0.2105263,0.2009804)
+jac <- jac[which(jac$userId %in% selected_user),]
+colnames(jac)[2] <- "similarity"
+```
+
+```{r}
+#order them to pick out 3 neighbours with highest jaccard similarity
+jac <- jac[order(-jac$similarity),]
+sim_sum <- sum(jac$similarity[1:3])
+
+real_rating <- c(4,5,3,4)
+pred_rating <- c()
+```
+
+```{r}
+cat("User ID 191, 5 random user IDs:", 
+    selected_user[1],selected_user[2],selected_user[3],
+    selected_user[4],selected_user[5])
+cat("\nUsing user-user similarity, User ID 191 will rate the movies as follows:\n")
+
+for(i in 1:ncol(U)) {
+  sum_sr = 0
+  if(is.na(U[nrow(U),i])) {
+    for (j in 1:3) {
+      sum_sr <- sum_sr + U[which(rownames(U) == jac$userId[j]),i] * jac$similarity[j]
+    }
+    movie_rating <-  (sum_sr/sim_sum)
+    pred_rating <- c(pred_rating,movie_rating)
+    cat("Movie Id",colnames(U)[i],
+        ":", movie_rating, "\n")
+  }
+}
+cat("RMSE:", rmse(real_rating,pred_rating))
+```
+
+
+```{r}
+U
+```
+
+
+
+
+##b.
+```{r}
+#transpose matrix
+U <- as.data.frame(t(U))
+#manualy swapping rows to make 191 first
+U <- U[,c("191","50","556","82","317","225")]
+U[,ncol(U)+1] <- apply(U,1,function(x) mean(x,na.rm=T))
+U
+```
+
+
+```{r}
+U_pearson <- U
+for(i in 1:29){
+  U_pearson[i,] <- U[i,] - U[i,7]
+}
+U_pearson <- as.data.frame(na.fill(U_pearson,0))
+U_pearson <- U_pearson[,1:ncol(U_pearson) - 1]
+
+pred_rating <- c()
+```
+
+
+
+```{r}
+cat("User ID 191, 5 random user IDs:", 
+    selected_user[1],selected_user[2],selected_user[3],
+    selected_user[4],selected_user[5])
+cat("\nUsing user-user similarity, User ID 191 will rate the movies as follows:\n")
+
+
+for(i in 1:nrow(U) ) {
+  movie_rating <- 0
+  sum <- 0 
+  if(is.na(U[i,1])) {
+    U_final <- U
+    U_final[,ncol(U_final) + 1] <- NA
+    colnames(U_final)[ncol(U_final)] <- "sim"
+    for (j in 1:nrow(U_pearson)) {
+      U_final[j,ncol(U_final)] <- simil(U_pearson[i,],U_pearson[j,], method="cosine")
+    }
+    
+    U_final <- U_final[order(-U_final$sim),]
+    k <- 0
+    l <- 2
+    while (k < 3 & l < 10) {
+     if(!is.na(U_final[l,1])) {
+       movie_rating = movie_rating + U_final$sim[l] * U_final[l,1]
+       sum = sum + U_final$sim[l]
+       k = k + 1
+     }
+      l = l + 1
+    }
+    movie_rating <- movie_rating/sum
+    pred_rating <- c(pred_rating,movie_rating)
+
+    cat("Movie Id", rownames(U)[i],
+        ":", movie_rating, "\n")
+  }
+}
+cat("RMSE:", rmse(real_rating,pred_rating))
+```
+
+
+
+
+
+
+
+
